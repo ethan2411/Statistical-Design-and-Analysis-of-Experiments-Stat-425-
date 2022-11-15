@@ -1,0 +1,177 @@
+---
+title: "STAT 425 Project 02"
+author: "Daniel Girvitz & Ethan Scott"
+date: "24/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/ethan/OneDrive/Documents/Stat 425/Project #2")
+#setwd("C:/Users/Daniel/Documents/School/Uni/Fourth Year/STAT 425/Project 02")
+```
+
+### Preliminary
+
+This section serves to demonstrate that regular R functions handle BIBDs correctly. We begin with the analysis of data in Table 4.22.
+
+```{r}
+
+time <- c(73,74,   71,
+             75,67,72,
+          73,75,68,  
+          75,   72,75)
+treatment = c(1,1,1,
+              2,2,2,
+              3,3,3,
+              4,4,4) #catalyst
+block = c(1,2,4,
+          2,3,4,
+          1,2,3,
+          1,3,4) #batch
+
+df <- data.frame(time, treatment, block)
+
+library(crossdes)
+(tab <- xtabs(~ treatment + block, data = df))
+(d <- t(apply(tab, 1, function(x) (1:4)[x != 0])))
+isGYD(d)
+
+```
+
+We have verified this data is a BIBD.
+
+```{r}
+one.way <- aov(time~factor(treatment)+factor(block), data=df)
+summary(one.way)
+```
+
+As the ANOVA table does not match Table 4.24, the 'aov' function fails to analyze a BIBD properly. Thus, we must do this manually...
+
+```{r}
+test = aov(time~factor(block)+factor(treatment), data=df)
+summary(test)
+```
+
+This one matches the Table
+
+```{r, echo=FALSE}
+
+#a = 4 # treatments
+#b = 4 # blocks
+#k = 3 # number of treatments in each block
+#r = 3 # number of times each treatment occurs (in a block)
+
+#N = 12
+#a*r
+#b*k
+
+#The equation $N=ar=bk$ is satisfied.
+```
+
+### The data... along with some data cleaning
+
+```{r}
+# load data
+eData.raw <- read.csv(file = 'appletaste.csv')
+aftertaste <- eData.raw$aftertaste
+panelist <- eData.raw$panelist
+product <- as.factor(eData.raw$product)
+eData <- data.frame(aftertaste,
+                    panelist,
+                    product)
+```
+
+### Checking for a balanced design
+
+```{r}
+# check balance for panelists
+replications(aftertaste ~ panelist, data=eData)
+
+# check balance for product
+replications(aftertaste ~ product, data=eData)
+
+# let's try a table
+table(eData$panelist,eData$product)
+```
+
+Each of the twenty panelists samples three of the four products. Each product is sampled 15 times. Thus, the design appears to be balanced.
+
+### Boxplots
+
+```{r}
+boxplot(aftertaste~product,data=eData, 
+        main="Aftertaste data",
+        xlab="Product", 
+        ylab="Aftertaste")
+stripchart(aftertaste ~ product, data=eData,
+           vertical = TRUE, 
+           method = "jitter",
+           pch = 20, 
+           add = TRUE, 
+           col = "rosybrown1")
+means <- tapply(eData$aftertaste, eData$product, mean)
+points(means, pch=19, col="red")
+```
+
+Product 493 appears to be the sweetest. The rest are relatively more bitter; as regards their differences, that is TBD.
+
+### ANOVA
+
+```{r}
+appletaste.aov <- aov(aftertaste ~ product + panelist, data=eData)
+summary(appletaste.aov)
+```
+
+Obviously, the null hypothesis of equality of treatment means, holding a level of alpha=0.05, must be REJECTED.
+
+##Below is the correct ANOVA table, the conclusion that can be drawn is the same
+
+```{r}
+appletaste.aov=aov(aftertaste~panelist+product, data=eData)
+summary(appletaste.aov)
+```
+
+```{r}
+par(mfrow=c(1,2))
+plot(appletaste.aov,1)
+plot(appletaste.aov,2)
+```
+
+\textbf{The Residuals vs Fitted plot:} Residuals are randomly distributed with what appears to be constant width, thus, we can conclude the homogenity of variance (homoscedasticity) requirement is satisfied. Although there is a curve to the red line, we choose to ignore it, as it is quite minor. A Box-Cox transformation may correct this slight deviation. \newline
+
+\textbf{Normal Q-Q:} Theoretical quantities fit the diagonal very well, which intersects the origin. Thus, the normality requirement is satisfied. But, just to be sure, let's check the residuals. \newline
+
+```{r}
+par(mfrow=c(1,2))
+eij=residuals(appletaste.aov)
+hist(eij,main="Histogram of residuals")
+plot(density(eij),main="Density plot of residuals",ylab="Density",xlab="Residuals")
+```
+
+Beauty. Perfect.
+
+```{r}
+shapiro.test(eData$aftertaste)
+# bartlett.test(aftertaste ~ product + panelist, data=eData) Fails?
+```
+
+```{r}
+library(DescTools)
+LeveneTest(aftertaste~panelist, data=eData)
+LeveneTest(aftertaste~product, data=eData)
+```
+
+Idk if this is the correct way but both p-values are above 0.05 so homogeneity of Variance holds
+
+#Comparing Treatment means using Fisher LSD
+
+```{r}
+PostHocTest(appletaste.aov, method="lsd")
+```
+
+#Comparing means using Tukey HSD
+
+```{r}
+PostHocTest(appletaste.aov, method="hsd")
+```

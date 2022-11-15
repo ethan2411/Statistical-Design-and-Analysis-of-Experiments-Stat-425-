@@ -1,0 +1,124 @@
+---
+title: 'Stat 425 Project #3'
+author: "Daniel Girvitz & Ethan Scott"
+date: "23/03/2022"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+setwd("C:/Users/ethan/OneDrive/Documents/Stat 425/Project #3")
+```
+
+### DATA
+
+```{r}
+eData=read.csv(file="dietox.csv")
+```
+
+### Data cleaning
+
+```{r}
+
+pig_id <- unique(eData$Pig) # 72 pigs among 24 litters -- pigs per litter better be 3!!!
+
+weight_change=c(1:72)
+vitamineE=c(1:72)
+copper=c(1:72)
+
+for (val in 1:72) {
+weight_change[val] <- eData$Weight[eData$Pig==pig_id[val] & eData$Time==11]-eData$Start[eData$Pig==pig_id[val] & eData$Time==11]
+vitamineE[val] <- eData$Evit[eData$Pig==pig_id[val] & eData$Time==11]
+copper[val] <- eData$Cu[eData$Pig==pig_id[val] & eData$Time==11]
+}
+
+vitamineE <- as.factor(vitamineE)
+copper <- as.factor(copper)
+
+##THE ONLY DATA THAT IS MEANINGFUL TO THE EXPERIMENT ARE VITAMINE E AND COPPER
+
+#making sure data looks good, it looks fine here
+new.Data=data.frame(vitamineE,copper,weight_change)
+new.Data
+
+
+#Should we only look at the data when time=11 so we know how it affected them at
+#the end of the experiment with the middle not really  mattering?
+
+# time==1 - time==1
+
+```
+
+```{r}
+#Just graphing things out
+boxplot(weight_change~vitamineE,data=eData, 
+        main="Weight data",
+        xlab="Vitamine E", 
+        ylab="Weight Change")
+boxplot(weight_change~copper,data=eData, 
+        main="Weight data",
+        xlab="Copper", 
+        ylab="Weight Change")
+```
+
+```{r}
+#ANOVA
+weight.aov=aov(weight_change~vitamineE+copper+vitamineE:copper)
+summary(weight.aov)
+```
+
+#Not much interaction?? Idk how this works lol
+
+```{r}
+interaction.plot(x.factor=copper, trace.factor=vitamineE, response=weight_change,col=1:20, 
+                 xlab="Operator", 
+                 ylab="Response", 
+                 main="Interaction Plot")
+```
+
+#Seems to meet asumptions well enough
+
+```{r}
+par(mfrow=c(1,2))
+plot(weight.aov, 1:2)
+```
+
+#Looks to be skewed
+
+```{r}
+par(mfrow=c(1,2))
+eij=residuals(weight.aov)
+hist(eij,main="Histogram of residuals")
+plot(density(eij),main="Density plot of residuals",ylab="Density",xlab="Residuals")
+```
+
+#shows data is normally distributed
+
+```{r}
+shapiro.test(weight_change)
+```
+
+#Equal variances holds
+
+```{r}
+library(DescTools)
+LeveneTest(weight_change~vitamineE, data=eData)
+```
+
+```{r}
+LeveneTest(weight_change~copper, data=eData)
+```
+
+#1 difference in mean which is contradictory to our ANOVA
+
+```{r}
+PostHocTest(weight.aov, method="lsd")
+```
+
+#No difference given Tukey HSD which supports our ANOVA
+
+```{r}
+PostHocTest(weight.aov, method="hsd")
+```

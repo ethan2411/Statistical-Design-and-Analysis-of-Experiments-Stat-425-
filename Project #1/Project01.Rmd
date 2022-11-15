@@ -1,0 +1,220 @@
+---
+title: "STAT 425  Project 01"
+author: "Daniel Girvitz, Ethan Scott"
+date: "27/01/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#setwd("C:/Users/Daniel/Documents/School/Uni/Fourth Year/STAT 425/Project 01")
+```
+
+## Load data
+
+```{r}
+eData=read.csv("OrchardSprays.csv")
+```
+
+## Review data
+
+```{r}
+str(eData)
+table(eData$treatment)
+```
+
+
+## Boxplots
+
+```{r}
+boxplot(decrease~factor(treatment),data=eData,
+        ylab="decrease (mL?)",
+        main="Decrease of sucrose solution among treatments")
+```
+```{r}
+one.way=aov(decrease~factor(treatment),data=eData)
+summary(one.way)
+```
+
+## Plots of residuals
+
+```{r}
+par(mfrow=c(1,2))
+eij=residuals(one.way)
+hist(eij,main="Histogram of residuals")
+plot(density(eij),main="Density plot of residuals",ylab="Density",xlab="Residuals")
+```
+Distribution of residuals appears to satisfy normality assumption, although there is a minor right skew.
+
+
+```{r}
+par(mfrow=c(2,2))
+plot(one.way)
+```
+
+Analysis of diagnostic plots:
+1. Residuals vs Fitted: 
+2. Normal Q-Q: 
+3. Scale-Location:
+4. Constant Leverage: 
+
+https://arc.lib.montana.edu/book/statistics-with-r-textbook/item/57#tations%20for%20data%20that%20are%20actually%20normally%20distributed%2C%20two%20data%20sets%20simulated%20from%20normal%20distributions%20are%20displayed%20below%20in%20Figure%202-13.%20Note%20how%20neither%20follows%20the%20line%20exactly%20but%20that%20the%20overall%20pattern%20matches%20fairly%20well.%20You%20have%20to%20allow%20for%20some%20variation%20from%20the%20line%20in%20real%20data%20sets%20and%20focus%20on%20when%20there%20are%20really%20noticeable%20issues%20in%20the%20distribution%20of%20the%20residuals%20such%20as%20those%20displayed%20above.
+
+## Modified Levene's test
+
+```{r}
+library(car)
+# Levene's test with one independent variable
+leveneTest(decrease ~ factor(treatment), data = eData)
+
+```
+
+Variance appears to be fine, but Normal Q-Q plot shows heavy skew in the upper tail. To minimize the influence of those residuals, let's try a square-root transformation.
+
+## Square root transformation applied to ANOVA
+
+```{r}
+one.way.sqroot=aov(sqrt(decrease)~factor(treatment),data=eData)
+summary(one.way.sqroot)
+```
+
+## Plots of residuals
+
+```{r}
+par(mfrow=c(1,2))
+eij_sqroot=residuals(one.way.sqroot)
+hist(eij_sqroot,main="Histogram of residuals")
+plot(density(eij_sqroot),main="Density plot of residuals",ylab="Density",xlab="Residuals")
+```
+Looks a bit better,
+
+## Diagnostic plots
+
+```{r}
+par(mfrow=c(2,2))
+plot(one.way.sqroot)
+```
+
+Much better.
+
+
+## Tests for homogenity of variance (homoscedastiticity)
+
+```{r}
+bartlett.test(sqrt(decrease) ~ factor(treatment), data = eData)
+leveneTest(sqrt(decrease) ~ factor(treatment), data = eData)
+```
+
+Bartlett test rejects equality of variances, but this is suspect because it is heavily influenced by normality dist. requirement. Levene's test FTR, and is perhaps more accurate because it is more robust.
+
+## Shapiro-Wilk's test for normality - to analyze Bartlett test
+
+```{r}
+shapiro.test(sqrt(eData$decrease))
+```
+
+Yikes, guess it's better to go with the Modified Levene test after all...
+
+
+
+
+
+#getting means of treatments
+```{r}
+means = tapply(eData$decrease,eData$treatment, mean)
+means[1]
+means[2]
+means[3]
+means[4]
+means[5]
+means[6]
+means[7]
+means[8]
+```
+
+#Fischer LSD Test
+```{r}
+N=64
+n=8
+a=8
+MSE=8023
+Fisher.LSD=qt(0.05, N-a, lower.tail=F)*sqrt(MSE*2/n)
+Fisher.LSD
+comparisons=c(
+  means[1]-means[2],
+  means[1]-means[3],
+  means[1]-means[4],
+  means[1]-means[5],
+  means[1]-means[6],
+  means[1]-means[7],
+  means[1]-means[8],#Positive
+  means[2]-means[3],
+  means[2]-means[4],
+  means[2]-means[5],
+  means[2]-means[6],
+  means[2]-means[7],
+  means[2]-means[8],#positive
+  means[3]-means[4],
+  means[3]-means[5],
+  means[3]-means[6],
+  means[3]-means[7],
+  means[3]-means[8],
+  means[4]-means[5],
+  means[4]-means[6],
+  means[4]-means[7],
+  means[4]-means[8],
+  means[5]-means[6],
+  means[5]-means[7],
+  means[5]-means[8],
+  means[6]-means[7],
+  means[6]-means[8],
+  means[7]-means[8])
+abs(comparisons)-Fisher.LSD
+```
+mean 1-8 and 2-8 are significantly different, the rest of the means are not
+
+
+#Tukey's Test
+```{r}
+test_statistic = (max(means)-min(means))/sqrt(MSE/n)
+test_statistic
+q_Alpha = 2.10 #from table
+Tukey = q_Alpha*sqrt(MSE/n)
+Tukey
+abs(comparisons)-Tukey
+# means 1-8 and 2-8
+```
+Same as Fisher. LSD, mean 1-8 and 2-8 are significantly different, the rest of the means are not
+
+#Confidence Intervals
+```{r}
+(means[1]-means[2])+c(-1,1)*Tukey
+(means[1]-means[3])+c(-1,1)*Tukey
+(means[1]-means[4])+c(-1,1)*Tukey
+(means[1]-means[5])+c(-1,1)*Tukey
+(means[1]-means[6])+c(-1,1)*Tukey
+(means[1]-means[7])+c(-1,1)*Tukey
+(means[1]-means[8])+c(-1,1)*Tukey # does not cross 0
+(means[2]-means[3])+c(-1,1)*Tukey
+(means[2]-means[4])+c(-1,1)*Tukey
+(means[2]-means[5])+c(-1,1)*Tukey
+(means[2]-means[6])+c(-1,1)*Tukey
+(means[2]-means[7])+c(-1,1)*Tukey
+(means[2]-means[8])+c(-1,1)*Tukey #does not cross 0
+(means[3]-means[4])+c(-1,1)*Tukey
+(means[3]-means[5])+c(-1,1)*Tukey
+(means[3]-means[6])+c(-1,1)*Tukey
+(means[3]-means[7])+c(-1,1)*Tukey
+(means[3]-means[8])+c(-1,1)*Tukey
+(means[4]-means[5])+c(-1,1)*Tukey
+(means[4]-means[6])+c(-1,1)*Tukey
+(means[4]-means[7])+c(-1,1)*Tukey
+(means[4]-means[8])+c(-1,1)*Tukey
+(means[5]-means[6])+c(-1,1)*Tukey
+(means[5]-means[7])+c(-1,1)*Tukey
+(means[5]-means[8])+c(-1,1)*Tukey
+(means[6]-means[7])+c(-1,1)*Tukey
+(means[6]-means[8])+c(-1,1)*Tukey
+(means[7]-means[8])+c(-1,1)*Tukey
+```
+These results are the same as well, we can conclude that the means 1-8 and 2-8 are significantly different
